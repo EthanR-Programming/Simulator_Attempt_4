@@ -5,7 +5,198 @@ out vec4 FragColor;
 
 uniform sampler2D screenTex;
 
+// ============================================================
+// FXAA (post-process antialiasing)
+// ============================================================
+//
+// The render kernel writes hard-edged pixels (depth test keeps
+// one winner per pixel, so it can't blend edges). This pass
+// finds edges by luma contrast, walks along them to find where
+// they end, and nudges the sample point across the edge so the
+// result is a blend of the two sides.
+//
+// Set FXAA_ENABLED to 0 to compare with the raw output.
+//
+
+#define FXAA_ENABLED        0   // off: sprites, text and round corners are anti-aliased in the render kernel, FXAA only blurs them
+
+#define EDGE_THRESHOLD_MIN  0.0312  // ignore contrast below this (dark areas)
+#define EDGE_THRESHOLD_MAX  0.125   // ignore contrast below this fraction of local max
+#define SUBPIXEL_QUALITY    0.5     // 0 = sharper, 1 = softer (blurs small text more)
+#define ITERATIONS          12
+
+const float STEP[ITERATIONS] = float[](
+    1.0, 1.0, 1.0, 1.0, 1.0, 1.5, 2.0, 2.0, 2.0, 2.0, 4.0, 8.0
+);
+
+float luma(vec3 c)
+{
+    return dot(c, vec3(0.299, 0.587, 0.114));
+}
+
+float lumaAt(vec2 p)
+{
+    return luma(texture(screenTex, p).rgb);
+}
+
+float lumaOff(ivec2 o)
+{
+    return luma(textureOffset(screenTex, uv, o).rgb);
+}
+
 void main()
 {
-    FragColor = texture(screenTex, uv);
+    vec3 colourCentre = texture(screenTex, uv).rgb;
+
+#if !FXAA_ENABLED
+    FragColor = vec4(colourCentre, 1.0);
+    return;
+#endif
+
+    vec2 texel = 1.0 / vec2(textureSize(screenTex, 0));
+
+    // --------------------------------------------------------
+    // Local contrast: skip pixels that aren't on an edge
+    // --------------------------------------------------------
+
+    float lC = luma(colourCentre);
+    float lD = lumaOff(ivec2( 0, -1));
+    float lU = lumaOff(ivec2( 0,  1));
+    float lL = lumaOff(ivec2(-1,  0));
+    float lR = lumaOff(ivec2( 1,  0));
+
+    float lMin  = min(lC, min(min(lD, lU), min(lL, lR)));
+    float lMax  = max(lC, max(max(lD, lU), max(lL, lR)));
+    float range = lMax - lMin;
+
+    if (range < max(EDGE_THRESHOLD_MIN, lMax * EDGE_THRESHOLD_MAX))
+    {
+        FragColor = vec4(colourCentre, 1.0);
+        return;
+    }
+
+    float lDL = lumaOff(ivec2(-1, -1));
+    float lUR = lumaOff(ivec2( 1,  1));
+    float lUL = lumaOff(ivec2(-1,  1));
+    float lDR = lumaOff(ivec2( 1, -1));
+
+    float lDU = lD + lU;
+    float lLR = lL + lR;
+
+    float lLeftCorners  = lDL + lUL;
+    float lDownCorners  = lDL + lDR;
+    float lRightCorners = lDR + lUR;
+    float lUpCorners    = lUR + lUL;
+
+    // --------------------------------------------------------
+    // Edge direction
+    // --------------------------------------------------------
+
+    float edgeH =
+        abs(-2.0 * lL + lLeftCorners)  +
+        abs(-2.0 * lC + lDU) * 2.0     +
+        abs(-2.0 * lR + lRightCorners);
+
+    float edgeV =
+        abs(-2.0 * lU + lUpCorners)    +
+        abs(-2.0 * lC + lLR) * 2.0     +
+        abs(-2.0 * lD + lDownCorners);
+
+    bool isHorizontal = edgeH >= edgeV;
+
+    // Which side of the pixel the edge is on
+    float l1 = isHorizontal ? lD : lL;
+    float l2 = isHorizontal ? lU : lR;
+
+    float g1 = l1 - lC;
+    float g2 = l2 - lC;
+
+    bool  side1Steeper   = abs(g1) >= abs(g2);
+    float gradientScaled = 0.25 * max(abs(g1), abs(g2));
+
+    float stepLength = isHorizontal ? texel.y : texel.x;
+    float lLocalAvg;
+
+    if (side1Steeper)
+    {
+        stepLength = -stepLength;
+        lLocalAvg  = 0.5 * (l1 + lC);
+    }
+    else
+    {
+        lLocalAvg  = 0.5 * (l2 + lC);
+    }
+
+    // Move half a pixel onto the edge itself
+    vec2 edgeUV = uv;
+
+    if (isHorizontal) edgeUV.y += stepLength * 0.5;
+    else              edgeUV.x += stepLength * 0.5;
+
+    // --------------------------------------------------------
+    // Walk along the edge in both directions to find its ends
+    // --------------------------------------------------------
+
+    vec2 offset = isHorizontal ? vec2(texel.x, 0.0) : vec2(0.0, texel.y);
+
+    vec2 uv1 = edgeUV - offset;
+    vec2 uv2 = edgeUV + offset;
+
+    float lEnd1 = lumaAt(uv1) - lLocalAvg;
+    float lEnd2 = lumaAt(uv2) - lLocalAvg;
+
+    bool reached1 = abs(lEnd1) >= gradientScaled;
+    bool reached2 = abs(lEnd2) >= gradientScaled;
+
+    if (!reached1) uv1 -= offset;
+    if (!reached2) uv2 += offset;
+
+    for (int i = 2; i < ITERATIONS && !(reached1 && reached2); i++)
+    {
+        if (!reached1) lEnd1 = lumaAt(uv1) - lLocalAvg;
+        if (!reached2) lEnd2 = lumaAt(uv2) - lLocalAvg;
+
+        reached1 = abs(lEnd1) >= gradientScaled;
+        reached2 = abs(lEnd2) >= gradientScaled;
+
+        if (!reached1) uv1 -= offset * STEP[i];
+        if (!reached2) uv2 += offset * STEP[i];
+    }
+
+    // --------------------------------------------------------
+    // How far to shift the sample across the edge
+    // --------------------------------------------------------
+
+    float d1 = isHorizontal ? (uv.x - uv1.x) : (uv.y - uv1.y);
+    float d2 = isHorizontal ? (uv2.x - uv.x) : (uv2.y - uv.y);
+
+    bool  nearer1   = d1 < d2;
+    float dNearest  = min(d1, d2);
+    float edgeLen   = d1 + d2;
+
+    float pixelOffset = 0.5 - dNearest / edgeLen;
+
+    // Only shift if the edge end we found is on the expected side
+    bool centreDarker = lC < lLocalAvg;
+    bool goodVariation =
+        ((nearer1 ? lEnd1 : lEnd2) < 0.0) != centreDarker;
+
+    float finalOffset = goodVariation ? pixelOffset : 0.0;
+
+    // Sub-pixel smoothing for thin features / single-pixel noise
+    float lAvg = (1.0 / 12.0) *
+        (2.0 * (lDU + lLR) + lLeftCorners + lRightCorners);
+
+    float sub1 = clamp(abs(lAvg - lC) / range, 0.0, 1.0);
+    float sub2 = (-2.0 * sub1 + 3.0) * sub1 * sub1;
+    float subOffset = sub2 * sub2 * SUBPIXEL_QUALITY;
+
+    finalOffset = max(finalOffset, subOffset);
+
+    vec2 finalUV = uv;
+
+    if (isHorizontal) finalUV.y += finalOffset * stepLength;
+    else              finalUV.x += finalOffset * stepLength;
+
+    FragColor = vec4(texture(screenTex, finalUV).rgb, 1.0);
 }

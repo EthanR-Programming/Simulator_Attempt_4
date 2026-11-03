@@ -9,6 +9,9 @@
 
 #define THREADS_PER_TEX       (1u << 5) // 32
 
+#define MAX_SAMPLES           8u    // max samples per axis when shrinking a texture
+#define OPAQUE_ALPHA          0.99f // pixels below this alpha get blended (edge buffer)
+
 typedef struct
 {
     int    x;
@@ -25,6 +28,45 @@ typedef struct
 
 } Sprite;
 
+
+// Bilinear sample at source position (u, v), returns premultiplied RGBA (0-255).
+// Premultiplying stops fully transparent texels (often black) darkening the
+// edges of a sprite.
+float4 sample_bilinear(
+    __global const uchar *tex,
+    const uint width,
+    const uint height,
+    float u,
+    float v
+)
+{
+    u = clamp(u, 0.0f, (float)(width  - 1));
+    v = clamp(v, 0.0f, (float)(height - 1));
+
+    const uint x0 = (uint)u;
+    const uint y0 = (uint)v;
+
+    const uint x1 = min(x0 + 1u, width  - 1u);
+    const uint y1 = min(y0 + 1u, height - 1u);
+
+    const float fx = u - (float)x0;
+    const float fy = v - (float)y0;
+
+    const float4 t00 = convert_float4(vload4(0, tex + (y0 * width + x0) * 4));
+    const float4 t10 = convert_float4(vload4(0, tex + (y0 * width + x1) * 4));
+    const float4 t01 = convert_float4(vload4(0, tex + (y1 * width + x0) * 4));
+    const float4 t11 = convert_float4(vload4(0, tex + (y1 * width + x1) * 4));
+
+    const float4 p00 = (float4)(t00.xyz * t00.w, t00.w);
+    const float4 p10 = (float4)(t10.xyz * t10.w, t10.w);
+    const float4 p01 = (float4)(t01.xyz * t01.w, t01.w);
+    const float4 p11 = (float4)(t11.xyz * t11.w, t11.w);
+
+    const float4 top    = mix(p00, p10, fx);
+    const float4 bottom = mix(p01, p11, fx);
+
+    return mix(top, bottom, fy);
+}
 
 __kernel void render_textures(
 
@@ -78,7 +120,13 @@ __kernel void render_textures(
     const uint screenWidth,
     const uint screenHeight,
 
-    const float global_scale
+    const float global_scale,
+
+    // --------------------------------------------------------
+    // Edge buffer (partly transparent pixels, blended in resolve)
+    // --------------------------------------------------------
+
+    __global uint *edgeBuffer
 )
 {
     // ========================================================
@@ -313,6 +361,23 @@ __kernel void render_textures(
 
 
     // ========================================================
+    // SAMPLES PER PIXEL
+    // ========================================================
+    //
+    // When a texture is shrunk (e.g. 256px glyphs drawn at 25px)
+    // one destination pixel covers many source texels. Averaging
+    // a grid of samples across that area stops thin strokes
+    // vanishing and edges going jagged.
+    //
+
+    const uint samplesX =
+        clamp((uint)ceil(1.0f / totalScaleX), 1u, MAX_SAMPLES);
+
+    const uint samplesY =
+        clamp((uint)ceil(1.0f / totalScaleY), 1u, MAX_SAMPLES);
+
+
+    // ========================================================
     // RENDER PIXELS
     // ========================================================
 
@@ -362,10 +427,12 @@ __kernel void render_textures(
         // Round edges
         // ----------------------------------------------------
         //
-        // Skip pixels whose centre is further than the radius
-        // from the inner rectangle (the sprite shrunk by the
-        // radius on every side).
+        // Fade out pixels by how far their centre is past the
+        // radius from the inner rectangle (the sprite shrunk by
+        // the radius on every side), giving a smooth curve.
         //
+
+        float coverage = 1.0f;
 
         if (roundImage)
         {
@@ -387,7 +454,11 @@ __kernel void render_textures(
             const float dx = px - cx;
             const float dy = py - cy;
 
-            if (dx * dx + dy * dy > cornerRadius * cornerRadius)
+            const float dist = sqrt(dx * dx + dy * dy);
+
+            coverage = clamp(cornerRadius - dist + 0.5f, 0.0f, 1.0f);
+
+            if (coverage <= 0.0f)
                 continue;
         }
 
@@ -399,73 +470,41 @@ __kernel void render_textures(
         if (!solidColour)
         {
             // ------------------------------------------------
-            // Bilinear sampling
+            // Filtered sampling
             // ------------------------------------------------
             //
-            // Map the destination pixel centre back into source
-            // space, then blend the 4 nearest texels. Edges are
-            // clamped so sprites don't bleed past their bounds.
+            // Map a grid of points inside the destination pixel
+            // back into source space and average their bilinear
+            // samples (one sample when not shrinking).
             //
-
-            float u =
-                ((float)dstX + 0.5f) / totalScaleX - 0.5f;
-
-            float v =
-                ((float)dstY + 0.5f) / totalScaleY - 0.5f;
-
-            u = clamp(u, 0.0f, (float)(sourceWidth  - 1));
-            v = clamp(v, 0.0f, (float)(sourceHeight - 1));
-
-            const uint x0 = (uint)u;
-            const uint y0 = (uint)v;
-
-            const uint x1 = min(x0 + 1u, sourceWidth  - 1u);
-            const uint y1 = min(y0 + 1u, sourceHeight - 1u);
-
-            const float fx = u - (float)x0;
-            const float fy = v - (float)y0;
-
-
-            // ------------------------------------------------
-            // Fetch the 4 RGBA8 texels
-            // ------------------------------------------------
 
             __global const uchar *tex =
                 textureData + textureOffsets[texID];
 
-            const float4 t00 = convert_float4(
-                vload4(0, tex + (y0 * sourceWidth + x0) * 4));
+            float4 texel = (float4)(0.0f);
 
-            const float4 t10 = convert_float4(
-                vload4(0, tex + (y0 * sourceWidth + x1) * 4));
+            for (uint sy = 0; sy < samplesY; sy++)
+            {
+                const float v =
+                    ((float)dstY + ((float)sy + 0.5f) / (float)samplesY) /
+                    totalScaleY - 0.5f;
 
-            const float4 t01 = convert_float4(
-                vload4(0, tex + (y1 * sourceWidth + x0) * 4));
+                for (uint sx = 0; sx < samplesX; sx++)
+                {
+                    const float u =
+                        ((float)dstX + ((float)sx + 0.5f) / (float)samplesX) /
+                        totalScaleX - 0.5f;
 
-            const float4 t11 = convert_float4(
-                vload4(0, tex + (y1 * sourceWidth + x1) * 4));
+                    texel += sample_bilinear(
+                        tex, sourceWidth, sourceHeight, u, v);
+                }
+            }
 
-
-            // ------------------------------------------------
-            // Blend with premultiplied alpha
-            // ------------------------------------------------
-            //
-            // Premultiplying stops fully transparent texels
-            // (often black) darkening the edges of a sprite.
-            //
-
-            const float4 p00 = (float4)(t00.xyz * t00.w, t00.w);
-            const float4 p10 = (float4)(t10.xyz * t10.w, t10.w);
-            const float4 p01 = (float4)(t01.xyz * t01.w, t01.w);
-            const float4 p11 = (float4)(t11.xyz * t11.w, t11.w);
-
-            const float4 top    = mix(p00, p10, fx);
-            const float4 bottom = mix(p01, p11, fx);
-            const float4 texel  = mix(top, bottom, fy);
+            texel /= (float)(samplesX * samplesY);
 
             const float a = texel.w;
 
-            if (a < 5.0f)
+            if (a < 1.0f)
                 continue;
 
             colour = (float4)(
@@ -486,28 +525,55 @@ __kernel void render_textures(
         // into the backbuffer afterwards.
         //
 
+        // Partly transparent pixels (anti-aliased edges) go to
+        // the edge buffer instead, packed as depth | alpha |
+        // RGB565, and get blended over the opaque result in
+        // resolve_depth.
+        //
+
+        if (spriteDepth == 0)
+            continue;
+
         const uint depthIndex =
             (uint)screenY * backbufferWidth +
             (uint)screenX;
 
-        const uint4 c = convert_uint4_sat_rte(colour * 255.0f);
+        const float4 pixel = (float4)(colour.xyz, colour.w * coverage);
 
-        const uint packed =
-            ((uint)spriteDepth << 24) |
-            (c.x << 16) | (c.y << 8) | c.z;
+        const uint4 c = convert_uint4_sat_rte(pixel * 255.0f);
 
-        if (spriteDepth > 0)
+        if (pixel.w >= OPAQUE_ALPHA)
+        {
+            const uint packed =
+                ((uint)spriteDepth << 24) |
+                (c.x << 16) | (c.y << 8) | c.z;
+
             atomic_max(&depthBuffer[depthIndex], packed);
+        }
+        else
+        {
+            const uint rgb565 =
+                ((c.x >> 3) << 11) | ((c.y >> 2) << 5) | (c.z >> 3);
+
+            const uint packed =
+                ((uint)spriteDepth << 24) |
+                (c.w << 16) | rgb565;
+
+            atomic_max(&edgeBuffer[depthIndex], packed);
+        }
     }
 }
 
-// Copies packed depth/colour values into the backbuffer.
-// Pixels with value 0 were never drawn and keep the clear colour.
+// Copies packed depth/colour values into the backbuffer, then blends
+// the edge buffer pixel on top if it isn't hidden by an opaque pixel.
+// Pixels never drawn keep the clear colour.
 __kernel void resolve_depth(
     __global const uint *depthBuffer,
     write_only image2d_t backbuffer,
     const uint backbufferWidth,
-    const uint backbufferHeight
+    const uint backbufferHeight,
+    __global const uint *edgeBuffer,
+    const float4 clearColour
 )
 {
     const uint x = get_global_id(0);
@@ -516,17 +582,37 @@ __kernel void resolve_depth(
     if (x >= backbufferWidth || y >= backbufferHeight)
         return;
 
-    const uint v = depthBuffer[y * backbufferWidth + x];
+    const uint index = y * backbufferWidth + x;
 
-    if (v == 0)
+    const uint v = depthBuffer[index];
+    const uint e = edgeBuffer[index];
+
+    if (v == 0 && e == 0)
         return;
 
-    const float4 colour = (float4)(
-        (float)((v >> 16) & 0xFF),
-        (float)((v >> 8)  & 0xFF),
-        (float)( v        & 0xFF),
-        255.0f
-    ) * (1.0f / 255.0f);
+    float3 colour = clearColour.xyz;
 
-    write_imagef(backbuffer, (int2)(x, y), colour);
+    if (v != 0)
+    {
+        colour = (float3)(
+            (float)((v >> 16) & 0xFF),
+            (float)((v >> 8)  & 0xFF),
+            (float)( v        & 0xFF)
+        ) * (1.0f / 255.0f);
+    }
+
+    if (e != 0 && (e >> 24) >= (v >> 24))
+    {
+        const float alpha = (float)((e >> 16) & 0xFF) * (1.0f / 255.0f);
+
+        const float3 edgeColour = (float3)(
+            (float)((e >> 11) & 0x1F) * (1.0f / 31.0f),
+            (float)((e >> 5)  & 0x3F) * (1.0f / 63.0f),
+            (float)( e        & 0x1F) * (1.0f / 31.0f)
+        );
+
+        colour = mix(colour, edgeColour, alpha);
+    }
+
+    write_imagef(backbuffer, (int2)(x, y), (float4)(colour, 1.0f));
 }

@@ -57,5 +57,6 @@ button_t *button_add(
 void button_render_remove(button_t *c);
 void button_render(button_t *c , uchar use_hover_colour);
 void button_poll();
+char button_remove(button_t *button);
 
 #endif

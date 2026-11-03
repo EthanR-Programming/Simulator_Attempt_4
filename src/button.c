@@ -47,7 +47,7 @@ void button_render(button_t *c , uchar use_hover_colour){
                 scale = (float)((float)(c->width - 10) / (float)string_length);
             }
 
-            c->tex_ids.str_ids_ptr[c->tex_ids.str_id_num++] = string_render(c->text , c->text_type , mid_x , mid_y , scale , 255 , c->flags , 1);
+            c->tex_ids.str_ids_ptr[c->tex_ids.str_id_num++] = string_render(c->text , c->text_type , mid_x , mid_y , scale , 255 , c->flags & ~(round_edges) , 1);
         }
     }
 }
@@ -66,6 +66,40 @@ void button_render_remove(button_t *c){
     c->tex_ids.str_id_num = 0;
 }
 
+// -1 on failure
+char button_remove(
+    button_t *button
+){
+    if (button == NULL){
+        return -1;
+    }
+    
+    button_t *c = button_linked_list;
+    button_t *prev = c;
+
+    if (!c) return -1;
+
+    while(c != button) {
+        if (c == 0) return -1;
+        prev = c;
+        c = c -> next;
+    }
+
+    if (c == button_linked_list){
+        button_linked_list = c->next;
+    }
+    else{
+        prev->next = c->next;
+    }
+
+    button_render_remove(button);  // take its textures/strings off screen
+    free(button->tex_ids.tex_ids_ptr);
+    free(button->tex_ids.str_ids_ptr);
+    free(button);
+
+    return 0;
+}
+
 // optional on_press_func_ptr and render_function and text, 0 ALPHA for no colour
 button_t *button_add(
     int x, int y, 
@@ -77,12 +111,11 @@ button_t *button_add(
     colour_t hover_colour, 
     uchar flags
 ){
-
     button_t* c = button_add_ll_element();
 
     c->backgound_tex_index = -1;
-    c->x = x;
-    c->y = y;
+    c->x = x - (width >> 1);
+    c->y = y - (height >> 1);
     c->width = width;
     c->height = height;
     c->function_ptr = on_press_func_ptr;
@@ -139,12 +172,12 @@ void button_poll(){
                     return;
                 }
                 
-                if (c->tex_ids.tex_ids_ptr[c->backgound_tex_index]) tex_remove(c->tex_ids.tex_ids_ptr[c->backgound_tex_index]);
+                if (c->tex_ids.tex_ids_ptr[c->backgound_tex_index] != - 1) tex_remove(c->tex_ids.tex_ids_ptr[c->backgound_tex_index]);
                 c->tex_ids.tex_ids_ptr[c->backgound_tex_index] = solid_colour_tex_add(c->x , c->y , c->width , c->height , c->hover_colour_id , 1.0f , 240 , c->flags);
                 c->currently_hovered = 1;
             }
             else{
-                if (c->tex_ids.tex_ids_ptr[c->backgound_tex_index]) tex_remove(c->tex_ids.tex_ids_ptr[c->backgound_tex_index]);
+                if (c->tex_ids.tex_ids_ptr[c->backgound_tex_index] != -1) tex_remove(c->tex_ids.tex_ids_ptr[c->backgound_tex_index]);
             }
         }
         else{
@@ -157,7 +190,7 @@ void button_poll(){
                     continue;
                 }
 
-                if (c->tex_ids.tex_ids_ptr[c->backgound_tex_index]) tex_remove(c->tex_ids.tex_ids_ptr[c->backgound_tex_index]);
+                if (c->tex_ids.tex_ids_ptr[c->backgound_tex_index] != -1) tex_remove(c->tex_ids.tex_ids_ptr[c->backgound_tex_index]);
                 c->tex_ids.tex_ids_ptr[c->backgound_tex_index] = solid_colour_tex_add(c->x , c->y , c->width , c->height , c->colour_id , 1.0f , 240 , c->flags);
 
                 c->currently_hovered = 0;

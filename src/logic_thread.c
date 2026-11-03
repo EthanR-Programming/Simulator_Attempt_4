@@ -8,21 +8,15 @@
 #include <unistd.h>
 
 #include "menu_state.h"
+#include "play_defines.h"
 
 extern volatile struct input_s user_inputs;
+extern volatile char window_active;
 
 #define LOGIC_LOOP_HZ 120
 #define PERIOD_NS (1000000000L / LOGIC_LOOP_HZ)   // 8,333,333 ns
 
-enum game_states {
-
-    MENU_STATE,
-    PLAY_STATE,
-    SETTINGS_STATE
-
-};
-
-uint game_state;
+volatile uint game_state;
 
 void logic_thread(void){
     struct timespec next;
@@ -30,13 +24,33 @@ void logic_thread(void){
 
     static uint prev_state;
 
-    while(1){
+    while(window_active){
 
         // START OF LOGIC
         button_poll();
 
         if (prev_state != game_state){
+            switch (prev_state) { 
+                case MENU_STATE:
+                    menu_remove();
+                    break;
 
+                default:
+                    break;
+            }
+
+            
+            switch (game_state) { 
+                case MENU_STATE:
+                    menu_init();
+                    break;
+
+                default:
+                    printf("Game state not recognised - This is critical to game function... defaulting to menu_state\n");
+                    menu_init();
+                    game_state = MENU_STATE;
+                    break;
+            }
         }
 
         switch (game_state) { 
@@ -45,8 +59,6 @@ void logic_thread(void){
                 break;
 
             default:
-                printf("Game state not recognised - This is critical to game function... defaulting to menu_state\n");
-                game_state = MENU_STATE;
                 break;
         }
         
@@ -70,6 +82,6 @@ void logic_thread(void){
 void logic_thread_init(){
     // LOGIC INIT
     game_state = MENU_STATE;
-
+    menu_init();
     logic_thread();
 }

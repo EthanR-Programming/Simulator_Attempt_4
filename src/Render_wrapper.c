@@ -41,6 +41,9 @@ cl_mem opencl_frame_textures[2];
 // OpenCL depth buffer
 cl_mem opencl_depth_buffer;
 
+// OpenCL edge buffer (partly transparent pixels)
+cl_mem opencl_edge_buffer;
+
 // OpenCL context
 extern struct cl_main_context_s opencl_context;
 
@@ -216,6 +219,7 @@ void opencl_frame_buffer_fill(int frame_buffer_index){
     // Fill depth buffer
     int pattern = 0;
     if (opencl_depth_buffer) checkError(clEnqueueFillBuffer(opencl_context.queue , opencl_depth_buffer , &pattern , sizeof(uint) , 0 , (window_width * window_height * sizeof(uint)), 0 , 0 , 0) ,  "Filling Depth Buffer");
+    if (opencl_edge_buffer) checkError(clEnqueueFillBuffer(opencl_context.queue , opencl_edge_buffer , &pattern , sizeof(uint) , 0 , (window_width * window_height * sizeof(uint)), 0 , 0 , 0) ,  "Filling Edge Buffer");
     
 }
 
@@ -225,6 +229,9 @@ void opencl_resolve_run(int frame_buffer_index){
     cl_kernel_set_arg(resolve_kernel , 1 , sizeof(cl_mem) , &opencl_frame_textures[frame_buffer_index]);
     cl_kernel_set_arg(resolve_kernel , 2 , sizeof(uint) , &window_width);
     cl_kernel_set_arg(resolve_kernel , 3 , sizeof(uint) , &window_height);
+    cl_kernel_set_arg(resolve_kernel , 4 , sizeof(cl_mem) , &opencl_edge_buffer);
+    cl_float4 clear_colour = {window_background_r / 255.0f, window_background_g / 255.0f, window_background_b / 255.0f, 1.0f};
+    cl_kernel_set_arg(resolve_kernel , 5 , sizeof(cl_float4) , &clear_colour);
     size_t global_work[2] = {window_width , window_height};
     checkError(clEnqueueNDRangeKernel(opencl_context.queue , resolve_kernel , 2 , NULL , global_work , NULL , 0 , NULL , NULL) , "Resolve kernel");
 }
@@ -260,6 +267,11 @@ void opencl_kernel_arg_set_init(cl_kernel kernel){
     // Depth buffer
     opencl_depth_buffer = cl_buffer_create(CL_MEM_READ_WRITE , window_width * window_height * sizeof(uint));
     cl_kernel_set_arg(render_kernel , 8 , sizeof(cl_mem) , &opencl_depth_buffer);
+
+    // Edge buffer
+    if (opencl_edge_buffer) clReleaseMemObject(opencl_edge_buffer);
+    opencl_edge_buffer = cl_buffer_create(CL_MEM_READ_WRITE , window_width * window_height * sizeof(uint));
+    cl_kernel_set_arg(render_kernel , 15 , sizeof(cl_mem) , &opencl_edge_buffer);
 
 }
 
@@ -809,6 +821,11 @@ void window_resize(){
     if (opencl_depth_buffer) clReleaseMemObject(opencl_depth_buffer);
     opencl_depth_buffer = cl_buffer_create(CL_MEM_READ_WRITE , window_width * window_height * sizeof(uint));
     cl_kernel_set_arg(render_kernel , 8 , sizeof(cl_mem) , &opencl_depth_buffer);
+
+    // Edge buffer
+    if (opencl_edge_buffer) clReleaseMemObject(opencl_edge_buffer);
+    opencl_edge_buffer = cl_buffer_create(CL_MEM_READ_WRITE , window_width * window_height * sizeof(uint));
+    cl_kernel_set_arg(render_kernel , 15 , sizeof(cl_mem) , &opencl_edge_buffer);
 
     clFinish(opencl_context.queue);
     glFinish();

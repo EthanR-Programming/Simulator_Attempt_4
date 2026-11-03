@@ -3,5 +3,6 @@
 
 void menu_poll();
 void menu_init();
+void menu_remove();
 
 #endif

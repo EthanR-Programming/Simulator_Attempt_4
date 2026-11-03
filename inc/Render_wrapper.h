@@ -9,6 +9,15 @@
 #include <pthread.h>
 #include "mem.h"
 
+#define black_text 0
+#define white_text 1
+#define red_text 2
+#define green_text 3
+#define blue_text 4
+#define grey_text 5
+#define orange_text 6
+
+
 void render_init();
 int tex_add(int x, int y, unsigned short texture_id, float scale, unsigned char depth, unsigned char flags);
 int solid_colour_add(unsigned char r, unsigned char g, unsigned char b);

@@ -3,6 +3,9 @@
 #define FLAG_SOLID_COLOUR     (1u << 1)
 #define USE_GLOBAL_SCALE      (1u << 2)
 #define USE_CAM_COORDS        (1u << 3)
+#define ROUND_IMAGE           (1u << 4)
+
+#define ROUND_RADIUS          8.0f // corner radius in logical pixels
 
 #define THREADS_PER_TEX       (1u << 5) // 32
 
@@ -111,6 +114,9 @@ __kernel void render_textures(
     
     const bool useCamOffset =
         (flags & USE_CAM_COORDS) != 0;
+
+    const bool roundImage =
+        (flags & ROUND_IMAGE) != 0;
 
 
     // ========================================================
@@ -231,6 +237,25 @@ __kernel void render_textures(
 
 
     // ========================================================
+    // ROUND EDGE RADIUS
+    // ========================================================
+
+    float cornerRadius = 0.0f;
+
+    if (roundImage)
+    {
+        cornerRadius =
+            ROUND_RADIUS *
+            fmin(totalScaleX, totalScaleY);
+
+        cornerRadius = fmin(
+            cornerRadius,
+            0.5f * (float)min(dstWidth, dstHeight)
+        );
+    }
+
+
+    // ========================================================
     // SPRITE SCREEN POSITION
     // ========================================================
 
@@ -333,6 +358,40 @@ __kernel void render_textures(
         }
 
 
+        // ----------------------------------------------------
+        // Round edges
+        // ----------------------------------------------------
+        //
+        // Skip pixels whose centre is further than the radius
+        // from the inner rectangle (the sprite shrunk by the
+        // radius on every side).
+        //
+
+        if (roundImage)
+        {
+            const float px = (float)dstX + 0.5f;
+            const float py = (float)dstY + 0.5f;
+
+            const float cx = clamp(
+                px,
+                cornerRadius,
+                (float)dstWidth - cornerRadius
+            );
+
+            const float cy = clamp(
+                py,
+                cornerRadius,
+                (float)dstHeight - cornerRadius
+            );
+
+            const float dx = px - cx;
+            const float dy = py - cy;
+
+            if (dx * dx + dy * dy > cornerRadius * cornerRadius)
+                continue;
+        }
+
+
         // ====================================================
         // NORMAL TEXTURE
         // ====================================================
@@ -340,63 +399,78 @@ __kernel void render_textures(
         if (!solidColour)
         {
             // ------------------------------------------------
-            // Nearest-neighbour sampling
+            // Bilinear sampling
             // ------------------------------------------------
+            //
+            // Map the destination pixel centre back into source
+            // space, then blend the 4 nearest texels. Edges are
+            // clamped so sprites don't bleed past their bounds.
+            //
 
-            uint srcX =
-                (uint)(
-                    (float)dstX /
-                    totalScaleX
-                );
+            float u =
+                ((float)dstX + 0.5f) / totalScaleX - 0.5f;
 
-            uint srcY =
-                (uint)(
-                    (float)dstY /
-                    totalScaleY
-                );
+            float v =
+                ((float)dstY + 0.5f) / totalScaleY - 0.5f;
 
-            if (srcX >= sourceWidth)
-                srcX = sourceWidth - 1;
+            u = clamp(u, 0.0f, (float)(sourceWidth  - 1));
+            v = clamp(v, 0.0f, (float)(sourceHeight - 1));
 
-            if (srcY >= sourceHeight)
-                srcY = sourceHeight - 1;
+            const uint x0 = (uint)u;
+            const uint y0 = (uint)v;
 
+            const uint x1 = min(x0 + 1u, sourceWidth  - 1u);
+            const uint y1 = min(y0 + 1u, sourceHeight - 1u);
 
-            // ------------------------------------------------
-            // Texture offset
-            // ------------------------------------------------
-
-            const uint textureOffset =
-                textureOffsets[texID];
+            const float fx = u - (float)x0;
+            const float fy = v - (float)y0;
 
 
             // ------------------------------------------------
-            // RGBA8 pixel
+            // Fetch the 4 RGBA8 texels
             // ------------------------------------------------
 
-            const uint srcIndex =
-                textureOffset +
-                ((srcY * sourceWidth + srcX) * 4);
+            __global const uchar *tex =
+                textureData + textureOffsets[texID];
+
+            const float4 t00 = convert_float4(
+                vload4(0, tex + (y0 * sourceWidth + x0) * 4));
+
+            const float4 t10 = convert_float4(
+                vload4(0, tex + (y0 * sourceWidth + x1) * 4));
+
+            const float4 t01 = convert_float4(
+                vload4(0, tex + (y1 * sourceWidth + x0) * 4));
+
+            const float4 t11 = convert_float4(
+                vload4(0, tex + (y1 * sourceWidth + x1) * 4));
 
 
-            const uchar r =
-                textureData[srcIndex + 0];
+            // ------------------------------------------------
+            // Blend with premultiplied alpha
+            // ------------------------------------------------
+            //
+            // Premultiplying stops fully transparent texels
+            // (often black) darkening the edges of a sprite.
+            //
 
-            const uchar g =
-                textureData[srcIndex + 1];
+            const float4 p00 = (float4)(t00.xyz * t00.w, t00.w);
+            const float4 p10 = (float4)(t10.xyz * t10.w, t10.w);
+            const float4 p01 = (float4)(t01.xyz * t01.w, t01.w);
+            const float4 p11 = (float4)(t11.xyz * t11.w, t11.w);
 
-            const uchar b =
-                textureData[srcIndex + 2];
+            const float4 top    = mix(p00, p10, fx);
+            const float4 bottom = mix(p01, p11, fx);
+            const float4 texel  = mix(top, bottom, fy);
 
-            const uchar a =
-                textureData[srcIndex + 3];
+            const float a = texel.w;
 
-            if (a < 5)
+            if (a < 5.0f)
                 continue;
 
-
-            colour = convert_float4(
-                (uchar4)(r, g, b, a)
+            colour = (float4)(
+                texel.xyz / a,
+                a
             ) * (1.0f / 255.0f);
         }
 

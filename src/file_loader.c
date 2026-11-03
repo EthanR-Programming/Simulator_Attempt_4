@@ -20,7 +20,7 @@ char *file_load(char *path , int *length){
     int size = ftell(f);
     fseek(f , SEEK_SET , 0);
 
-    char * str = malloc(size + 1);
+    char * str = mem_malloc(size + 1);
     
     if (!str){
         printf("FAILED TO MALLOC\n");
@@ -57,7 +57,7 @@ char **list_files_in_folder(const char *folder_path, int *count) {
         return NULL;
     }
 
-    files = malloc(capacity * sizeof(char *));
+    files = mem_malloc(capacity * sizeof(char *));
     if (!files) {
         closedir(dir);
         return NULL;
@@ -110,8 +110,8 @@ char **list_files_in_folder_recursive(const char *folder_path, int *count)
 
     *count = 0;
 
-    files = malloc(file_capacity * sizeof(char *));
-    dirs = malloc(dir_capacity * sizeof(char *));
+    files = mem_malloc(file_capacity * sizeof(char *));
+    dirs = mem_malloc(dir_capacity * sizeof(char *));
 
     if (!files || !dirs) {
         free(files);
@@ -151,7 +151,7 @@ char **list_files_in_folder_recursive(const char *folder_path, int *count)
             size_t path_len =
                 strlen(current_dir) + 1 + strlen(entry->d_name) + 1;
 
-            char *full_path = malloc(path_len);
+            char *full_path = mem_malloc(path_len);
             if (!full_path) {
                 closedir(dir);
                 free(current_dir);
@@ -321,13 +321,13 @@ unsigned char *load_png_rgba(const char *filename, int *out_width, int *out_heig
     png_read_update_info(png, info);
 
     // Allocate output RGBA buffer
-    unsigned char *data = (unsigned char *)malloc(width * height * 4);
+    unsigned char *data = (unsigned char *)mem_malloc(width * height * 4);
     if (!data) {
         fclose(fp);
         return NULL;
     }
 
-    png_bytep *rows = (png_bytep *)malloc(sizeof(png_bytep) * height);
+    png_bytep *rows = (png_bytep *)mem_malloc(sizeof(png_bytep) * height);
     if (!rows) {
         free(data);
         png_destroy_read_struct(&png, &info, NULL);
@@ -358,7 +358,7 @@ char **get_lines(char *buffer, int *line_number) {
 
     *line_number = 0;
     int capacity = 1024;
-    char **lines = malloc(sizeof(char *) * capacity);
+    char **lines = mem_malloc(sizeof(char *) * capacity);
     if (!lines) {
         return NULL;
     }
@@ -398,7 +398,7 @@ char **get_lines(char *buffer, int *line_number) {
                 capacity = new_capacity;
             }
 
-            char *line_start = malloc(line_len + 1);
+            char *line_start = mem_malloc(line_len + 1);
             if (!line_start) {
                 for (int i = 0; i < *line_number; i++) {
                     free(lines[i]);

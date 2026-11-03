@@ -1,0 +1,10 @@
+-xc
+-std=gnu17
+-Iinc
+-Iglad/include
+-w
+-Wno-error=int-conversion
+-Wno-error=implicit-function-declaration
+-Wno-error=return-mismatch
+-Wno-error=incompatible-function-pointer-types
+-Wno-error=incompatible-pointer-types

@@ -14,6 +14,7 @@
 #include <string.h>
 #include <dirent.h>
 #include <sys/stat.h>
+#include "mem.h"
 
 char *file_load(char *path , int *length);
 char **list_files_in_folder(const char *folder_path, int *count);

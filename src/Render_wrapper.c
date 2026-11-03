@@ -281,14 +281,13 @@ struct full_tex_data_s *tex_data_combine(struct single_tex_data_s* data){
     c = data;
 
     // struct that will hold all tex info
-    struct full_tex_data_s *ret = malloc(sizeof(struct full_tex_data_s));
-    memset(ret , 0 , sizeof(struct full_tex_data_s));
+    struct full_tex_data_s *ret = mem_malloc(sizeof(struct full_tex_data_s));
 
     // Creates arrays for return struct
-    ret->data = malloc(total_size); memset(ret->data , 0 , total_size);
-    ret->width = malloc(sizeof(uint) * tex_number); memset(ret->width , 0 , sizeof(uint) * tex_number);
-    ret->height = malloc(sizeof(uint) * tex_number); memset(ret->height , 0 , sizeof(uint) * tex_number);
-    ret->offsets = malloc(sizeof(uint) * tex_number); memset(ret->offsets , 0 , sizeof(uint) * tex_number);
+    ret->data = mem_malloc(total_size); memset(ret->data , 0 , total_size);
+    ret->width = mem_malloc(sizeof(uint) * tex_number); memset(ret->width , 0 , sizeof(uint) * tex_number);
+    ret->height = mem_malloc(sizeof(uint) * tex_number); memset(ret->height , 0 , sizeof(uint) * tex_number);
+    ret->offsets = mem_malloc(sizeof(uint) * tex_number); memset(ret->offsets , 0 , sizeof(uint) * tex_number);
 
     uint index = 0;
     uint data_index = 0;
@@ -333,7 +332,7 @@ void tex_add_png(uchar *path){
     // Inits the list if needed
     struct single_tex_data_s * c = global_tex_data_list;
     if (!c){
-        global_tex_data_list = malloc(sizeof_tex_struct); memset(global_tex_data_list , 0 , sizeof_tex_struct);
+        global_tex_data_list = mem_malloc(sizeof_tex_struct);
         c = global_tex_data_list;
     }
     else{
@@ -341,7 +340,7 @@ void tex_add_png(uchar *path){
         while(c->next) c = c ->next;
 
         // appends element to list
-        c->next = malloc(sizeof_tex_struct); memset(c->next , 0 , sizeof_tex_struct);
+        c->next = mem_malloc(sizeof_tex_struct);
 
         // sets c to new element
         c = c -> next;
@@ -361,7 +360,7 @@ void text_add(uchar *path, uchar colour[3]){
     
     // Inits text_info if needed
     if (!text_info){
-        text_info = malloc(sizeof(struct text_s) * 255); memset(text_info , 0 , sizeof(struct text_s) * 255);
+        text_info = mem_malloc(sizeof(struct text_s) * 255);
     }
 
     // Opens TTF file and returns if NULL
@@ -377,7 +376,7 @@ void text_add(uchar *path, uchar colour[3]){
     fseek(f, 0, SEEK_SET);
 
     // Reads TTF file
-    uchar *ttf_buffer = malloc(file_size);
+    uchar *ttf_buffer = mem_malloc(file_size);
     fread(ttf_buffer , 1 , file_size , f);
     fclose(f);
 
@@ -387,7 +386,7 @@ void text_add(uchar *path, uchar colour[3]){
     // finds latest render item
     struct single_tex_data_s * c = global_tex_data_list;
     if (!c){
-        global_tex_data_list = malloc(sizeof(struct single_tex_data_s)); memset(global_tex_data_list , 0 ,sizeof(struct single_tex_data_s));
+        global_tex_data_list = mem_malloc(sizeof(struct single_tex_data_s));
         c = global_tex_data_list;
     }
     else{
@@ -396,7 +395,7 @@ void text_add(uchar *path, uchar colour[3]){
             c = c->next;
         }
         text_begining++;
-        c->next = malloc(sizeof(struct single_tex_data_s)); memset(c->next , 0 , sizeof(struct single_tex_data_s));
+        c->next = mem_malloc(sizeof(struct single_tex_data_s));
         c = c->next;
     }
 
@@ -410,7 +409,7 @@ void text_add(uchar *path, uchar colour[3]){
     for(int i = 0; i < 254;i++){
 
         if (i == 13 || i == 160) {
-            c->next = malloc(sizeof(struct single_tex_data_s)); memset(c->next , 0 , sizeof(struct single_tex_data_s));
+            c->next = mem_malloc(sizeof(struct single_tex_data_s));
             c = c->next;
             continue;
         }
@@ -438,7 +437,7 @@ void text_add(uchar *path, uchar colour[3]){
         c->width = width;
 
         // Advances tex ptr
-        c->next = malloc(sizeof(struct single_tex_data_s)); memset(c->next , 0 , sizeof(struct single_tex_data_s));
+        c->next = mem_malloc(sizeof(struct single_tex_data_s));
         c = c->next;
     }
     text_info_index++;
@@ -522,7 +521,7 @@ int solid_colour_add(uchar r, uchar g, uchar b){
             }
         }
         else{
-            solid_colour_buffer.buffer = malloc(solid_colour_buffer.buffer_max * sizeof(uchar) * 3);
+            solid_colour_buffer.buffer = mem_malloc(solid_colour_buffer.buffer_max * sizeof(uchar) * 3);
         }
     }
 
@@ -629,10 +628,10 @@ int tex_add(int x, int y, ushort texture_id, float scale, uchar depth, uchar fla
             }
         }
         else{
-            sprite_buffer.buffer = malloc(sizeof(struct sprite_s) * sprite_buffer.buffer_max);
-            sprite_buffer.buffer_sprite_translation = malloc(sizeof(int) * sprite_buffer.buffer_max);
-            sprite_buffer.buffer_sprite_translation_stack = malloc(sizeof(int) * sprite_buffer.buffer_max);
-            sprite_buffer.sprite_buffer_translation = malloc(sizeof(int) * sprite_buffer.buffer_max);
+            sprite_buffer.buffer = mem_malloc(sizeof(struct sprite_s) * sprite_buffer.buffer_max);
+            sprite_buffer.buffer_sprite_translation = mem_malloc(sizeof(int) * sprite_buffer.buffer_max);
+            sprite_buffer.buffer_sprite_translation_stack = mem_malloc(sizeof(int) * sprite_buffer.buffer_max);
+            sprite_buffer.sprite_buffer_translation = mem_malloc(sizeof(int) * sprite_buffer.buffer_max);
         }
     }
 
@@ -677,10 +676,10 @@ int solid_colour_tex_add(int x, int y, int width, int height, ushort texture_id,
             }
         }
         else{
-            sprite_buffer.buffer = malloc(sizeof(struct sprite_s) * sprite_buffer.buffer_max);
-            sprite_buffer.buffer_sprite_translation = malloc(sizeof(int) * sprite_buffer.buffer_max);
-            sprite_buffer.buffer_sprite_translation_stack = malloc(sizeof(int) * sprite_buffer.buffer_max);
-            sprite_buffer.sprite_buffer_translation = malloc(sizeof(int) * sprite_buffer.buffer_max);
+            sprite_buffer.buffer = mem_malloc(sizeof(struct sprite_s) * sprite_buffer.buffer_max);
+            sprite_buffer.buffer_sprite_translation = mem_malloc(sizeof(int) * sprite_buffer.buffer_max);
+            sprite_buffer.buffer_sprite_translation_stack = mem_malloc(sizeof(int) * sprite_buffer.buffer_max);
+            sprite_buffer.sprite_buffer_translation = mem_malloc(sizeof(int) * sprite_buffer.buffer_max);
         }
     }
 
@@ -856,7 +855,7 @@ void toggle_fullscreen()
 }
 
 int rendering_fps = 0;
-void render_loop(){
+void *render_loop(void *NOT_USED){
 
     // The index of the frame buffer
     int frame_buffer_index = 0;

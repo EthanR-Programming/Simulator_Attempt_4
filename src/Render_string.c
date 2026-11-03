@@ -33,13 +33,13 @@ long long string_render(char *string , char text_type, int x, int y , float scal
     struct string_s * c;
 
     if (string_id_buffer_end){
-        string_id_buffer_end->next = malloc(sizeof(struct string_s));
+        string_id_buffer_end->next = mem_malloc(sizeof(struct string_s));
         memset(string_id_buffer_end ->next , 0 , sizeof(struct string_s));
         string_id_buffer_end = string_id_buffer_end -> next;
         c = string_id_buffer_end;
     }
     else{
-        string_id_buffer = malloc(sizeof(struct string_s));
+        string_id_buffer = mem_malloc(sizeof(struct string_s));
         memset(string_id_buffer , 0 , sizeof(struct string_s));
         string_id_buffer_end = string_id_buffer;
         c = string_id_buffer;
@@ -69,7 +69,7 @@ long long string_render(char *string , char text_type, int x, int y , float scal
     string_x += - (total_offset / 2);
     if (draw_from_center) string_y = y - (min_y + max_y) / 2;
 
-    c->ID_array = malloc((string_length + 1) * sizeof(int));
+    c->ID_array = mem_malloc((string_length + 1) * sizeof(int));
     memset(c->ID_array , 0 , (string_length + 1) * sizeof(int));
 
     for (int i = 0; i < string_length ;i++){

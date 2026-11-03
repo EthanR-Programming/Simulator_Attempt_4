@@ -1,5 +1,6 @@
 #include "Render_wrapper.h"
 #include "render_string.h"
+#include "logic_thread.h"
 #include <unistd.h>
 
 extern volatile char rendering_init;
@@ -10,21 +11,12 @@ extern volatile unsigned char window_background_g;
 extern volatile unsigned char window_background_b;
 extern volatile struct input_s user_inputs;
 
-int main(){
+void main(){
 
     render_init();
+
     while(!rendering_init) usleep(1000);
 
-    target_fps = 60;
-    window_background_r = 30; window_background_g = 32; window_background_b = 38;
+    logic_thread_init();
 
-    int panel = solid_colour_add(60, 64, 80);
-    solid_colour_tex_add(100, 100, 400, 200, panel, 1, 10, 0);
-    string_render("Rising Edge renderer", 1, 300, 220, 0.25f, 20, 0, 1);
-
-    while(window_active){
-        user_inputs.update = 1;
-        usleep(1000000 / 120);
-    }
-    return 0;
 }

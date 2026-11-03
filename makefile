@@ -1,7 +1,7 @@
 CC = gcc
 WINCC = x86_64-w64-mingw32-gcc
 
-CFLAGS += -O3
+CFLAGS += -O3 -MMD -MP
 
 SRC_DIR = src
 INC_DIR = inc
@@ -37,8 +37,8 @@ $(OUT): $(OBJS) $(GLAD_OBJ)
 	$(CC) $(OBJS) $(GLAD_OBJ) -o $@ $(LDLIBS)
 
 clean:
-	rm -f $(OBJS) $(GLAD_OBJ) $(OBJS:.o=.d) $(OUT) $(OUT).exe
+	rm -f $(OBJS) $(GLAD_OBJ) $(OBJS:.o=.d) $(GLAD_OBJ:.o=.d) $(OUT) $(OUT).exe
 
--include $(OBJS:.o=.d)
+-include $(OBJS:.o=.d) $(GLAD_OBJ:.o=.d)
 
 .PHONY: all windows clean

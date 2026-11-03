@@ -102,7 +102,7 @@ unsigned char *text_load_char(
         (size_t)w * (size_t)h * 4;
 
     unsigned char *rgba =
-        malloc(rgba_size);
+        mem_malloc(rgba_size);
 
     if (rgba == NULL)
     {

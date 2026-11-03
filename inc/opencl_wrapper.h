@@ -10,6 +10,7 @@
 #include <GL/glx.h>
 #include <X11/Xlib.h>
 #include "file_loader.h"
+#include "mem.h"
 
 typedef struct cl_main_context_s {
 

@@ -16,7 +16,7 @@ void opencl_init()
         return;
     }
 
-    cl_platform_id *platforms = (cl_platform_id*)malloc(sizeof(cl_platform_id) * num_platforms);
+    cl_platform_id *platforms = (cl_platform_id*)mem_malloc(sizeof(cl_platform_id) * num_platforms);
 
     clGetPlatformIDs(num_platforms, platforms, NULL);
 
@@ -27,7 +27,7 @@ void opencl_init()
         size_t ext_size = 0;
         clGetPlatformInfo(platforms[i],CL_PLATFORM_EXTENSIONS,0, NULL, &ext_size);
 
-        char *ext = (char*)malloc(ext_size);
+        char *ext = (char*)mem_malloc(ext_size);
         clGetPlatformInfo(platforms[i],CL_PLATFORM_EXTENSIONS,ext_size, ext, NULL);
 
         if (strstr(ext, "cl_khr_gl_sharing")) {platform = platforms[i];
@@ -130,7 +130,7 @@ void cl_program_build(cl_program program, cl_device_id device) {
                         NULL,
                         &log_size);
 
-    char *log = malloc(log_size + 1);
+    char *log = mem_malloc(log_size + 1);
 
     clGetProgramBuildInfo(program,
                         opencl_context.device,
@@ -173,7 +173,7 @@ void opencl_kernel_run(cl_kernel kernel ,size_t size) {
 
 // Function to read buffer data with error checking
 void* cl_buffer_read(cl_mem buffer, size_t size) {
-    void* host_ptr = malloc(size);
+    void* host_ptr = mem_malloc(size);
     memset(host_ptr , 0 , size);
     cl_int err = clEnqueueReadBuffer(opencl_context.queue, buffer, CL_TRUE, 0, size, host_ptr, 0, NULL, NULL);
     checkError(err, "Failed to read buffer");
@@ -189,7 +189,7 @@ void cl_buffer_write(cl_mem *buffer, const void* host_ptr, size_t write_size) {
 // Function to resize a buffer with error checking
 cl_mem cl_buffer_resize(cl_mem_flags flags,cl_mem original_buffer, size_t original_size , size_t new_size) {
     // Read the data from the original buffer into a temporary host pointer
-    void* temp_host_ptr = malloc(original_size);
+    void* temp_host_ptr = mem_malloc(original_size);
     clEnqueueReadBuffer(NULL, original_buffer, CL_FALSE, 0, original_size, temp_host_ptr, 0, NULL, NULL);
 
     // Create a new buffer with the updated size

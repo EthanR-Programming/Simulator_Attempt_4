@@ -6,6 +6,9 @@
 #include "types.h"
 #include "Render_wrapper.h"
 #include "render_string.h"
+#include "colours.h"
+
+#define BUTTON_MAX_IDS 64
 
 typedef struct button_s{
 
@@ -15,14 +18,14 @@ typedef struct button_s{
     colour_t colour;
     int colour_id;
 
-    uint backgound_tex_index;
+    int background_tex_id;     // -1 when no background is on screen
 
     // hover colour
     colour_t hover_colour;
     int hover_colour_id;
     uchar currently_hovered;
 
-    char * text;
+    char * text;               // own copy, freed in button_remove
     uchar text_type;
     float text_scale;
 
@@ -46,8 +49,8 @@ typedef struct button_s{
 button_t *button_add(
     int x, int y, 
     int width, int height, 
-    void (*on_press_func_ptr), 
-    void (*render_function), 
+    void (*on_press_func_ptr)(button_t *c), 
+    void (*render_function)(uchar hover), 
     const char *text , uchar text_type, float text_scale,
     colour_t colour, 
     colour_t hover_colour, 

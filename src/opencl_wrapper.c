@@ -143,6 +143,7 @@ void cl_program_build(cl_program program, cl_device_id device) {
     if (log_size > 5){
         printf("log: %s\n", log);
     }
+    free(log);
 
 }
 

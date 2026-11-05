@@ -8,10 +8,12 @@
 #include <unistd.h>
 
 #include "menu_state.h"
+#include "play.h"
 #include "play_defines.h"
 
 extern volatile struct input_s user_inputs;
 extern volatile char window_active;
+extern volatile char fullscreen;
 
 #define LOGIC_LOOP_HZ 120
 #define PERIOD_NS (1000000000L / LOGIC_LOOP_HZ)   // 8,333,333 ns
@@ -29,10 +31,26 @@ void logic_thread(void){
         // START OF LOGIC
         button_poll();
 
+        // if f11 pressed then toggle fullscreen (once per press)
+        static char f11_pressed;
+        if (user_inputs.keys[GLFW_KEY_F11]){
+            if (!f11_pressed){
+                fullscreen = !fullscreen;
+                f11_pressed = 1;
+            }
+        }
+        else{
+            f11_pressed = 0;
+        }
+
         if (prev_state != game_state){
             switch (prev_state) { 
                 case MENU_STATE:
                     menu_remove();
+                    break;
+
+                case PLAY_STATE:
+                    play_destroy();
                     break;
 
                 default:
@@ -45,17 +63,26 @@ void logic_thread(void){
                     menu_init();
                     break;
 
+                case PLAY_STATE:
+                    play_init();
+                    break;
+
                 default:
                     printf("Game state not recognised - This is critical to game function... defaulting to menu_state\n");
                     menu_init();
                     game_state = MENU_STATE;
                     break;
             }
+            prev_state = game_state;
         }
 
         switch (game_state) { 
             case MENU_STATE:
                 menu_poll();
+                break;
+
+            case PLAY_STATE:
+                play_poll();
                 break;
 
             default:
@@ -72,9 +99,8 @@ void logic_thread(void){
             next.tv_nsec -= 1000000000L;
             next.tv_sec++;
         }
-        // Sleep until that moment (returns imassed)
+        // Sleep until that moment
         clock_nanosleep(CLOCK_MONOTONIC, TIMER_ABSTIME, &next, NULL);
-        prev_state = game_state;
     }
 }
 

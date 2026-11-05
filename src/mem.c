@@ -1,4 +1,5 @@
 #include "mem.h"
+#include <string.h>
 
 ulong total_malloc;
 
@@ -9,7 +10,7 @@ void *mem_malloc(ulong size){
     
     if (!ret_ptr){
         printf("MALLOC FAILED\n");
-        return -1;
+        return NULL;
     }
 
     memset(ret_ptr , 0 , size);

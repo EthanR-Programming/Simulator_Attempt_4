@@ -18,7 +18,7 @@ char *file_load(char *path , int *length){
 
     fseek(f , 0 , SEEK_END);
     int size = ftell(f);
-    fseek(f , SEEK_SET , 0);
+    fseek(f , 0 , SEEK_SET);
 
     char * str = mem_malloc(size + 1);
     

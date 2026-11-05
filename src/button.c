@@ -1,9 +1,13 @@
 #include "button.h"
 #include "collision.h"
+#include <string.h>
 
 extern volatile struct input_s user_inputs;
 
 button_t *button_linked_list;
+
+// Left mouse state from the last button_poll, so a click only fires once
+static char last_left_mouse;
 
 button_t *button_add_ll_element(){
     if (!button_linked_list){
@@ -19,42 +23,27 @@ button_t *button_add_ll_element(){
     return c->next;
 }
 
-void button_render(button_t *c , uchar use_hover_colour){
-
-    // Not transparent then draw button colour
-    if (c->colour.a != 0x0){
-        
-        // create colour id if its not already created
-        if (!c->colour_id) c->colour_id = solid_colour_add(c->colour.r , c->colour.g , c->colour.b);
-
-        if (!c->hover_colour_id) c->hover_colour_id = solid_colour_add(c->hover_colour.r , c->hover_colour.g , c->hover_colour.b);
-
-        c->tex_ids.tex_ids_ptr[(c->backgound_tex_index == -1) ? c->tex_ids.tex_id_num++ : c->backgound_tex_index] = solid_colour_tex_add(c->x , c->y , c->width , c->height , (use_hover_colour) ? c->hover_colour_id : c->colour_id , 1.0f,  240 , c->flags);
-        c->backgound_tex_index = (c->backgound_tex_index == -1) ? c->tex_ids.tex_id_num - 1 : c->backgound_tex_index;
+// draws or redraws the background in the normal or hover colour.
+// transparent colours draw nothing.
+static void button_background_draw(button_t *c, uchar hover){
+    if (c->background_tex_id != -1){
+        tex_remove(c->background_tex_id);
+        c->background_tex_id = -1;
     }
 
-    if (c->text){
-        if (c->text[0] != '\0'){
+    colour_t colour = hover ? c->hover_colour : c->colour;
+    if (colour.a == 0x0) return;
 
-            int mid_x = c->x + (c->width / 2);
-            int mid_y = c->y + (c->height / 2);
-
-            int string_length = string_get_draw_width(c->text , c->text_type , 1.0f);
-
-            float scale = c->text_scale;
-
-            if (c->text_scale == 0.0f){
-                scale = (float)((float)(c->width - 10) / (float)string_length);
-            }
-
-            c->tex_ids.str_ids_ptr[c->tex_ids.str_id_num++] = string_render(c->text , c->text_type , mid_x , mid_y , scale , 255 , c->flags & ~(round_edges) , 1);
-        }
-    }
+    int colour_id = hover ? c->hover_colour_id : c->colour_id;
+    c->background_tex_id = solid_colour_tex_add(c->x , c->y , c->width , c->height , colour_id , 1.0f , 240 , c->flags);
 }
 
-
-
 void button_render_remove(button_t *c){
+
+    if (c->background_tex_id != -1){
+        tex_remove(c->background_tex_id);
+        c->background_tex_id = -1;
+    }
 
     for (int i = 0;i < c->tex_ids.tex_id_num;i++){
         tex_remove(c->tex_ids.tex_ids_ptr[i]);
@@ -66,6 +55,29 @@ void button_render_remove(button_t *c){
     c->tex_ids.str_id_num = 0;
 }
 
+void button_render(button_t *c , uchar use_hover_colour){
+
+    // Clear anything already drawn so repeated renders don't pile up
+    button_render_remove(c);
+
+    button_background_draw(c, use_hover_colour);
+
+    if (c->text && c->text[0] != '\0' && c->tex_ids.str_id_num < BUTTON_MAX_IDS){
+
+        int mid_x = c->x + (c->width / 2);
+        int mid_y = c->y + (c->height / 2);
+
+        float scale = c->text_scale;
+
+        if (c->text_scale == 0.0f){
+            int string_length = string_get_draw_width(c->text , c->text_type , 1.0f);
+            if (string_length > 0) scale = (float)(c->width - 10) / (float)string_length;
+        }
+
+        c->tex_ids.str_ids_ptr[c->tex_ids.str_id_num++] = string_render(c->text , c->text_type , mid_x , mid_y , scale , 255 , c->flags & ~(round_edges) , 1);
+    }
+}
+
 // -1 on failure
 char button_remove(
     button_t *button
@@ -73,28 +85,23 @@ char button_remove(
     if (button == NULL){
         return -1;
     }
-    
+
     button_t *c = button_linked_list;
-    button_t *prev = c;
+    button_t *prev = 0;
 
-    if (!c) return -1;
-
-    while(c != button) {
-        if (c == 0) return -1;
+    while(c && c != button) {
         prev = c;
         c = c -> next;
     }
+    if (!c) return -1;
 
-    if (c == button_linked_list){
-        button_linked_list = c->next;
-    }
-    else{
-        prev->next = c->next;
-    }
+    if (prev) prev->next = c->next;
+    else button_linked_list = c->next;
 
     button_render_remove(button);  // take its textures/strings off screen
     free(button->tex_ids.tex_ids_ptr);
     free(button->tex_ids.str_ids_ptr);
+    free(button->text);
     free(button);
 
     return 0;
@@ -102,101 +109,75 @@ char button_remove(
 
 // optional on_press_func_ptr and render_function and text, 0 ALPHA for no colour
 button_t *button_add(
-    int x, int y, 
-    int width, int height, 
-    void (*on_press_func_ptr), 
-    void (*render_function), 
+    int x, int y,
+    int width, int height,
+    void (*on_press_func_ptr)(button_t *c),
+    void (*render_function)(uchar hover),
     const char *text , uchar text_type, float text_scale,
-    colour_t colour, 
-    colour_t hover_colour, 
+    colour_t colour,
+    colour_t hover_colour,
     uchar flags
 ){
     button_t* c = button_add_ll_element();
 
-    c->backgound_tex_index = -1;
+    c->background_tex_id = -1;
     c->x = x - (width >> 1);
     c->y = y - (height >> 1);
     c->width = width;
     c->height = height;
     c->function_ptr = on_press_func_ptr;
-    c->text = text;
     c->colour = colour;
-    c->render_func_ptr = render_function;    
+    c->render_func_ptr = render_function;
     c->flags = flags;
     c->text_type = text_type;
     c->text_scale = text_scale;
     c->hover_colour = hover_colour;
     c->clickable = 1;
 
-    if (!c->tex_ids.tex_ids_ptr){
-        c->tex_ids.tex_ids_ptr = mem_malloc(sizeof(int) * 64);
-        c->tex_ids.str_ids_ptr = mem_malloc(sizeof(int) * 64);
+    // Keep our own copy so the caller's string can go away
+    if (text){
+        c->text = mem_malloc(strlen(text) + 1);
+        strcpy(c->text, text);
     }
+
+    // Both colours are made up front, whichever one is visible
+    if (colour.a != 0x0) c->colour_id = solid_colour_try(colour.r , colour.g , colour.b);
+    if (hover_colour.a != 0x0) c->hover_colour_id = solid_colour_try(hover_colour.r , hover_colour.g , hover_colour.b);
+
+    c->tex_ids.tex_ids_ptr = mem_malloc(sizeof(int) * BUTTON_MAX_IDS);
+    c->tex_ids.str_ids_ptr = mem_malloc(sizeof(long long) * BUTTON_MAX_IDS);
 
     if (!c->render_func_ptr) button_render(c , false);
 
     return c;
 }
 
-// use custom rendering function
-
 void button_poll(){
+
+    char left_mouse = user_inputs.mouse_buttons[GLFW_MOUSE_BUTTON_LEFT];
+    char clicked = left_mouse && !last_left_mouse;   // only on the frame it's pressed
+    last_left_mouse = left_mouse;
 
     button_t *c = button_linked_list;
 
     while(c){
 
-        if (cursor_on_texture(c->x , c->y , c->width , c->height , 1.0f , c->flags)){
+        uchar hovered = cursor_on_texture(c->x , c->y , c->width , c->height , 1.0f , c->flags) ? 1 : 0;
 
-            if (user_inputs.mouse_buttons[GLFW_MOUSE_BUTTON_LEFT]){
-                if (c->function_ptr) (c->function_ptr)(c);
-            }
+        if (hovered != c->currently_hovered){
+            c->currently_hovered = hovered;
 
-            if (c->currently_hovered == 1){
-                c = c -> next;
-                continue;
-            }
-
-            if (c->render_func_ptr){
-                (c->render_func_ptr)(true);
-                c->currently_hovered = 1;
-                c = c -> next;
-                continue;
-            }
-
-            // cursor on button
-            if (c->hover_colour.a != 0x0){
-
-                if (c->backgound_tex_index == -1){
-                    printf("Button does not have a background index when it should? %s\n" , c->text);
-                    return;
-                }
-                
-                if (c->tex_ids.tex_ids_ptr[c->backgound_tex_index] != - 1) tex_remove(c->tex_ids.tex_ids_ptr[c->backgound_tex_index]);
-                c->tex_ids.tex_ids_ptr[c->backgound_tex_index] = solid_colour_tex_add(c->x , c->y , c->width , c->height , c->hover_colour_id , 1.0f , 240 , c->flags);
-                c->currently_hovered = 1;
-            }
-            else{
-                if (c->tex_ids.tex_ids_ptr[c->backgound_tex_index] != -1) tex_remove(c->tex_ids.tex_ids_ptr[c->backgound_tex_index]);
-            }
+            if (c->render_func_ptr) (c->render_func_ptr)(hovered);
+            else button_background_draw(c, hovered);
         }
-        else{
-            if (c->currently_hovered == 1){
 
-                if (c->render_func_ptr){
-                    (c->render_func_ptr)(false);
-                    c->currently_hovered = 0;
-                    c = c -> next;
-                    continue;
-                }
-
-                if (c->tex_ids.tex_ids_ptr[c->backgound_tex_index] != -1) tex_remove(c->tex_ids.tex_ids_ptr[c->backgound_tex_index]);
-                c->tex_ids.tex_ids_ptr[c->backgound_tex_index] = solid_colour_tex_add(c->x , c->y , c->width , c->height , c->colour_id , 1.0f , 240 , c->flags);
-
-                c->currently_hovered = 0;
-            }
+        if (hovered && clicked && c->clickable && c->function_ptr){
+            // The callback may add or remove buttons (even this one),
+            // so stop walking the list for this frame
+            (c->function_ptr)(c);
+            return;
         }
+
         c = c -> next;
     }
 }
-

@@ -24,7 +24,7 @@ long long string_render(char *string , char text_type, int x, int y , float scal
 
     if (!text_info){
         printf("called text rendering before text loaded :(\n");
-        return;
+        return -1;
     }
 
     int string_x = x;
@@ -52,11 +52,11 @@ long long string_render(char *string , char text_type, int x, int y , float scal
 
     int total_offset = 0;
     for (int i = 0; i < string_length;i++){
-        total_offset += ceil(text_info[text_type].advance[string[i]] * scale);
+        total_offset += ceil(text_info[text_type].advance[(unsigned char)string[i]] * scale);
     
         
-        int yoffset = ceil(text_info[text_type].yoffset[string[i]] * scale);
-        int height = ceil(text_info[text_type].height[string[i]] * scale);
+        int yoffset = ceil(text_info[text_type].yoffset[(unsigned char)string[i]] * scale);
+        int height = ceil(text_info[text_type].height[(unsigned char)string[i]] * scale);
 
         int top = -yoffset - height;
         int bottom = -yoffset;
@@ -73,14 +73,14 @@ long long string_render(char *string , char text_type, int x, int y , float scal
     memset(c->ID_array , 0 , (string_length + 1) * sizeof(int));
 
     for (int i = 0; i < string_length ;i++){
-        int char_x = string_x + ceil(text_info[text_type].xoffset[string[i]] * scale);
-        int char_y = string_y - ceil(text_info[text_type].yoffset[string[i]] * scale) - ceil(text_info[text_type].height[string[i]] * scale);
+        int char_x = string_x + ceil(text_info[text_type].xoffset[(unsigned char)string[i]] * scale);
+        int char_y = string_y - ceil(text_info[text_type].yoffset[(unsigned char)string[i]] * scale) - ceil(text_info[text_type].height[(unsigned char)string[i]] * scale);
         
-        c->ID_array[i] = tex_add(char_x, char_y, text_info[text_type].text_begining + string[i] , scale , depth , flags);
+        c->ID_array[i] = tex_add(char_x, char_y, text_info[text_type].text_begining + (unsigned char)string[i] , scale , depth , flags);
 
         c->ID_array_size++;
 
-        string_x += ceil(text_info[text_type].advance[string[i]] * scale);
+        string_x += ceil(text_info[text_type].advance[(unsigned char)string[i]] * scale);
     }
 
     c->string_ID = global_string_ID;
@@ -126,7 +126,7 @@ int string_get_draw_width(char *string , int text_type, float scale){
 
     int total_offset = 0;
     for (int i = 0; i < string_length;i++){
-        total_offset += ceil(text_info[text_type].advance[string[i]] * scale);
+        total_offset += ceil(text_info[text_type].advance[(unsigned char)string[i]] * scale);
     }
     return total_offset;
 }

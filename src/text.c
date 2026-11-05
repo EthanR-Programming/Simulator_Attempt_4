@@ -48,7 +48,7 @@ unsigned char *text_load_char(
 
     unsigned char *bitmap =
         stbtt_GetCodepointBitmap(
-            &font,
+            &font.info,
             stb_scale,
             stb_scale,
             character,
@@ -65,7 +65,7 @@ unsigned char *text_load_char(
         int local_lsb;
 
         stbtt_GetCodepointHMetrics(
-            &font,
+            &font.info,
             character,
             &local_advance,
             &local_lsb
@@ -86,7 +86,7 @@ unsigned char *text_load_char(
     int lsb_local;
 
     stbtt_GetCodepointHMetrics(
-        &font,
+        &font.info,
         character,
         &advance_local,
         &lsb_local

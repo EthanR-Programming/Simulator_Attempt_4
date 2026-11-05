@@ -49,10 +49,10 @@ struct input_s {
     float scroll_wheel;
 };
 
-#define scale_to_window     0x1 << 0
-#define solid_texture       0x1 << 1
-#define use_global_scale    0x1 << 2
-#define use_camera_offset   0x1 << 3
-#define round_edges         0x1 << 4
+#define scale_to_window     (0x1 << 0)
+#define solid_texture       (0x1 << 1)
+#define use_global_scale    (0x1 << 2)
+#define use_camera_offset   (0x1 << 3)
+#define round_edges         (0x1 << 4)
 
 #endif

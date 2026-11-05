@@ -11,7 +11,7 @@ extern volatile unsigned char window_background_g;
 extern volatile unsigned char window_background_b;
 extern volatile struct input_s user_inputs;
 
-void main(){
+int main(){
 
     render_init();
 
@@ -19,4 +19,5 @@ void main(){
 
     logic_thread_init();
 
+    return 0;
 }

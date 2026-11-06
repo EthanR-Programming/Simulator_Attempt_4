@@ -15,7 +15,7 @@ int ui_element_add_solid_tex(int ui_index, int x, int y, int width, int height, 
 int ui_element_add_text(int ui_index, const char *string, char text_type, int x, int y, float scale, uchar depth, char flags, char draw_from_center);
 int ui_element_add_tex(int ui_index, int x, int y, ushort texture_id, float scale, uchar depth, uchar flags);
 int ui_element_add_button(int ui_index, int x, int y, int width, int height,
-                          void (*on_press_func_ptr)(button_t *c), void (*render_function)(uchar hover),
+                          void (*on_press_func_ptr)(button_t *c), void (*render_function)(button_t *c , uchar hover),
                           const char *text_str, uchar text_type, float text_scale,
                           colour_t colour, colour_t hover_colour, uchar flags);
 

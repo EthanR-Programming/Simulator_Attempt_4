@@ -33,6 +33,9 @@ int *rising_edge_tex_ids;
 int rising_edge_tex_num;
 int rising_edge_colour;
 
+uint line_tex;
+uint line_tex_colour;
+
 void play_button_callback(button_t *b){
     game_state = PLAY_STATE;
 }
@@ -51,11 +54,11 @@ void exit_button_callback(button_t *b){
 #define GRID_ROWS 17            // 1080 / 64, rounded up
 #define GLOW_LEVELS 16          // number of fade colours
 #define GLOW_MAX_BLEND 0.35f    // brightest tile = 35% of the way to green
-#define GLOW_FADE_SECONDS 0.6f
-#define PULSE_STEP_SECONDS 0.1f
-#define PULSE_SPAWN_SECONDS 0.5f
-#define PULSE_TURN_CHANCE 10    // percent chance to turn 90 degrees per step
-#define MAX_PULSES 5
+#define GLOW_FADE_SECONDS 0.7f
+#define PULSE_STEP_SECONDS 0.2f
+#define PULSE_SPAWN_SECONDS 1.5f
+#define PULSE_TURN_CHANCE 5    // percent chance to turn 90 degrees per step
+#define MAX_PULSES 3
 
 int glow_colours[GLOW_LEVELS];
 int glow_colours_made;
@@ -303,6 +306,9 @@ void menu_init(){
 
     game_name_text_id = string_render("Rising Edge", white_text, 1920 >> 1, 850, 0.50f, 255, scale_to_window, true);
 
+    line_tex_colour = solid_colour_try(42, 47, 56);
+    line_tex = solid_colour_tex_add((1920 >> 1) - (545 >> 1), (1080 >> 1) + 80, 545, 4, line_tex_colour, 1.0f, 4, round_edges | scale_to_window);
+
     rising_edge_add();
 }
 
@@ -318,4 +324,5 @@ void menu_remove(){
     string_remove(game_name_text_id);
     grid_remove();
     rising_edge_remove();
+    tex_remove(line_tex);
 }

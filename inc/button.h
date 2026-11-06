@@ -37,7 +37,7 @@ typedef struct button_s{
 
     void (*function_ptr)(struct button_s *c);
 
-    void (*render_func_ptr)(uchar hover);
+    void (*render_func_ptr)(struct button_s *c ,  uchar hover);
 
     uchar flags;
 
@@ -50,7 +50,7 @@ button_t *button_add(
     int x, int y, 
     int width, int height, 
     void (*on_press_func_ptr)(button_t *c), 
-    void (*render_function)(uchar hover), 
+    void (*render_function)(button_t *c , uchar hover), 
     const char *text , uchar text_type, float text_scale,
     colour_t colour, 
     colour_t hover_colour, 

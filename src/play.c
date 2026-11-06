@@ -1,15 +1,7 @@
 #include "play.h"
 #include "grid.h"
 #include "play_defines.h"
-
-extern volatile float global_texture_scale;
-extern volatile struct input_s user_inputs;
-extern volatile uint game_state;
-extern volatile float camera_x;
-extern volatile float camera_y;
-extern volatile uint window_width;
-extern volatile uint window_height;
-extern volatile uint target_fps;
+#include "building_menu.h"
 
 enum play_ui_s {
     SAVE,
@@ -26,7 +18,7 @@ uint current_ui_open;
 
 char check_esc(){
     if (user_inputs.keys[GLFW_KEY_ESCAPE]){
-        game_state = MENU_STATE;
+        if (!current_ui_open) game_state = MENU_STATE;
         return 1;
     }
     return 0;
@@ -112,15 +104,18 @@ void camera_zoom(){
 
 void play_poll(){
 
+    // If user pressed esc, then we either close in game menu or go to menu
     if (check_esc()){
+        if (!current_ui_open) return;
         current_ui_open = 0;
-        return;
     }
 
     if (!current_ui_open){
         camera_movement();
-        camera_zoom();
+        if ((int)((float)user_inputs.mouse_x * (1920.0f / (float)window_width)) > BUILDING_MENU_WIDTH) camera_zoom();
     }
+
+    building_menu_poll();
 
     // rebuild the grid lines if the camera moved a chunk or the zoom changed
     game_grid_update();
@@ -128,11 +123,12 @@ void play_poll(){
 
 void play_init(){
     game_grid_init();
+    building_menu_init();
     target_fps = 360;
     global_texture_scale = 1.0f;
 }
 
 void play_destroy(){
     game_grid_destroy();
-
+    building_menu_destroy();
 }

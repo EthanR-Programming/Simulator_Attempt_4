@@ -112,7 +112,7 @@ button_t *button_add(
     int x, int y,
     int width, int height,
     void (*on_press_func_ptr)(button_t *c),
-    void (*render_function)(uchar hover),
+    void (*render_function)(button_t *c , uchar hover),
     const char *text , uchar text_type, float text_scale,
     colour_t colour,
     colour_t hover_colour,
@@ -148,6 +148,7 @@ button_t *button_add(
     c->tex_ids.str_ids_ptr = mem_malloc(sizeof(long long) * BUTTON_MAX_IDS);
 
     if (!c->render_func_ptr) button_render(c , false);
+    else if (c->render_func_ptr) c->render_func_ptr(c , false);
 
     return c;
 }
@@ -167,14 +168,13 @@ void button_poll(){
         if (hovered != c->currently_hovered){
             c->currently_hovered = hovered;
 
-            if (c->render_func_ptr) (c->render_func_ptr)(hovered);
-            else button_background_draw(c, hovered);
+            if (c->render_func_ptr && c->clickable) (c->render_func_ptr)(c ,hovered);
+            else if (c->clickable) button_background_draw(c, hovered);
         }
 
         if (hovered && clicked && c->clickable && c->function_ptr){
-            // The callback may add or remove buttons (even this one),
-            // so stop walking the list for this frame
             (c->function_ptr)(c);
+            // return as this may remove the current button or other buttons
             return;
         }
 

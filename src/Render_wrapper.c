@@ -464,7 +464,7 @@ void tex_data_setup(){
     uchar colour[3] = {0 , 0 , 0};
     text_add("AtkinsonHyperlegible-Regular.ttf" , colour); // BLACK
 
-    colour[0] = 200; colour[1] = 200; colour[2] = 200;
+    colour[0] = 230; colour[1] = 230; colour[2] = 230;
     text_add("AtkinsonHyperlegible-Regular.ttf" , colour); // WHITE
 
     colour[0] = 247; colour[1] = 84; colour[2] = 50;

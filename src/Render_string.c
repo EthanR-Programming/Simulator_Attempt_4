@@ -20,6 +20,7 @@ struct string_s * string_id_buffer_end;
 long long global_string_ID;
 
 // Adds the string to render list
+// draw_from_center, 0 = x centred, 1 = both, 2 = none
 long long string_render(char *string , char text_type, int x, int y , float scale, unsigned char depth, char flags, char draw_from_center){
 
     if (!text_info){
@@ -66,8 +67,8 @@ long long string_render(char *string , char text_type, int x, int y , float scal
 
     }
 
-    string_x += - (total_offset / 2);
-    if (draw_from_center) string_y = y - (min_y + max_y) / 2;
+    if (draw_from_center != 2) string_x += - (total_offset / 2);
+    if (draw_from_center == 1) string_y = y - (min_y + max_y) / 2;
 
     c->ID_array = mem_malloc((string_length + 1) * sizeof(int));
     memset(c->ID_array , 0 , (string_length + 1) * sizeof(int));

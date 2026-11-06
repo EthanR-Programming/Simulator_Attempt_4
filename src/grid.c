@@ -6,7 +6,7 @@ extern volatile float camera_x;
 extern volatile float camera_y;
 extern volatile float global_texture_scale;
 
-#define GRID_FLAGS (scale_to_window | use_global_scale | use_camera_offset)
+#define GRID_FLAGS (use_global_scale | use_camera_offset)
 
 // Lines are drawn one chunk (one major cell) longer than the view and snapped
 // to chunk boundaries, so the camera can move a whole chunk before a rebuild.
